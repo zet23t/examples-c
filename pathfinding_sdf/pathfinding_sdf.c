@@ -48,6 +48,8 @@
 
 #include "raylib.h"
 #include "raymath.h"
+#include "pathfinding_tutorial.h"
+#include "resources.h"
 
 #include <stddef.h> // Required for: NULL
 #include <math.h> // Required for: abs
@@ -645,6 +647,9 @@ int main(void)
         .rat = Agent_init(5, 25, 1, 75, 25, 2, ratFace, sizeof(ratFace) / sizeof(ratFace[0]), RED),
         .cat = Agent_init(5, 25, 2, 75, 25, 0, catFace, sizeof(catFace) / sizeof(catFace[0]), BLUE),
     };
+
+    Resources_load();
+    Tutorial_init();
     
     //--------------------------------------------------------------------------------------
 
@@ -658,92 +663,99 @@ int main(void)
 
             ClearBackground((Color) {170,200,150,255});
 
-            AppState_handleInput(&appState);
+            if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_RIGHT)) Tutorial_nextSubstep(IsKeyDown(KEY_LEFT_SHIFT));
+            if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressed(KEY_RIGHT)) Tutorial_prevPage();
 
-            //----------------------------------------------------------------------------------
-            // initialize map with random blocks
-            //----------------------------------------------------------------------------------
-            if (appState.randomizeBlocks)
-            {
-                appState.randomizeBlocks = 0;
-                AppState_randomizeBlocks(&appState);
-            }
-
-            //----------------------------------------------------------------------------------
-            // update sdf values and execute pathfinding
-            //----------------------------------------------------------------------------------
-            if (appState.updateSDF)
-            {
-                appState.updateSDF = 0;
-                AppState_updateSDF(&appState);
-            }
-
-            //----------------------------------------------------------------------------------
-            // draw cell content of walls and sdf values
-            //----------------------------------------------------------------------------------
-            DrawMapContent();
-
-            //----------------------------------------------------------------------------------
-            // draw rat pathfinding score data for visualization
-            //----------------------------------------------------------------------------------
-            PathfindingNode* pathToDraw = NULL;
-            switch (appState.visualizeMode % 3)
-            {
-                case 1: // visualize rat map
-                    pathToDraw = appState.rat.map;
-                    break;
-                case 2: // visualize cat map
-                    pathToDraw = appState.cat.map;
-                    break;
-            }
-
-            if (pathToDraw != NULL)
-            {
-                DrawPathMapVisualization(pathToDraw);
-            }
-
-            //----------------------------------------------------------------------------------
-            // draw grid lines
-            //----------------------------------------------------------------------------------
-            for (int y = 0; y < gridHeight; y++)
-            {
-                DrawRectangle(0, y * cellSize, gridWidth*cellSize, 1, gridColor);
-            }
-            for (int x = 0; x < gridWidth; x++)
-            {
-                DrawRectangle(x*cellSize, 0, 1, gridHeight*cellSize, gridColor);
-            }
-
-            // highlight current cell the mouse is over
-            DrawRectangle(appState.cellX * cellSize, appState.cellY * cellSize, cellSize, cellSize, cellHighlightColor);
+            Tutorial_update(GetFrameTime());
+            Tutorial_draw(GetFrameTime());
 
 
-            //----------------------------------------------------------------------------------
-            // draw paths of cat and rat
-            //----------------------------------------------------------------------------------
-            Agent_drawPath(&appState.rat);
-            Agent_drawPath(&appState.cat);
+            // AppState_handleInput(&appState);
 
-            //----------------------------------------------------------------------------------
-            // draw animated movement of rat and cat
-            //----------------------------------------------------------------------------------
-            Agent_drawPathMovement(&appState.rat);
-            Agent_drawPathMovement(&appState.cat);
+            // //----------------------------------------------------------------------------------
+            // // initialize map with random blocks
+            // //----------------------------------------------------------------------------------
+            // if (appState.randomizeBlocks)
+            // {
+            //     appState.randomizeBlocks = 0;
+            //     AppState_randomizeBlocks(&appState);
+            // }
+
+            // //----------------------------------------------------------------------------------
+            // // update sdf values and execute pathfinding
+            // //----------------------------------------------------------------------------------
+            // if (appState.updateSDF)
+            // {
+            //     appState.updateSDF = 0;
+            //     AppState_updateSDF(&appState);
+            // }
+
+            // //----------------------------------------------------------------------------------
+            // // draw cell content of walls and sdf values
+            // //----------------------------------------------------------------------------------
+            // DrawMapContent();
+
+            // //----------------------------------------------------------------------------------
+            // // draw rat pathfinding score data for visualization
+            // //----------------------------------------------------------------------------------
+            // PathfindingNode* pathToDraw = NULL;
+            // switch (appState.visualizeMode % 3)
+            // {
+            //     case 1: // visualize rat map
+            //         pathToDraw = appState.rat.map;
+            //         break;
+            //     case 2: // visualize cat map
+            //         pathToDraw = appState.cat.map;
+            //         break;
+            // }
+
+            // if (pathToDraw != NULL)
+            // {
+            //     DrawPathMapVisualization(pathToDraw);
+            // }
+
+            // //----------------------------------------------------------------------------------
+            // // draw grid lines
+            // //----------------------------------------------------------------------------------
+            // for (int y = 0; y < gridHeight; y++)
+            // {
+            //     DrawRectangle(0, y * cellSize, gridWidth*cellSize, 1, gridColor);
+            // }
+            // for (int x = 0; x < gridWidth; x++)
+            // {
+            //     DrawRectangle(x*cellSize, 0, 1, gridHeight*cellSize, gridColor);
+            // }
+
+            // // highlight current cell the mouse is over
+            // DrawRectangle(appState.cellX * cellSize, appState.cellY * cellSize, cellSize, cellSize, cellHighlightColor);
+
+
+            // //----------------------------------------------------------------------------------
+            // // draw paths of cat and rat
+            // //----------------------------------------------------------------------------------
+            // Agent_drawPath(&appState.rat);
+            // Agent_drawPath(&appState.cat);
+
+            // //----------------------------------------------------------------------------------
+            // // draw animated movement of rat and cat
+            // //----------------------------------------------------------------------------------
+            // Agent_drawPathMovement(&appState.rat);
+            // Agent_drawPathMovement(&appState.cat);
             
-            //----------------------------------------------------------------------------------
-            // description and status
-            //----------------------------------------------------------------------------------
-            DrawText("Left click to toggle blocked cells, C: clear, Left mouse: toggle cell", 10, 10, 20, BLACK);
-            DrawText("The red rat is small and likes to run close to walls", 10, 30, 20, RED);
-            DrawText("The blue cat is big and can't fit through narrow paths and\nprefers the short path", 10, 50, 20, BLUE);
-            DrawText(TextFormat("Rat path length: %.2f, Cat path length: %.2f", 
-                CalcPathLength(appState.rat.path, appState.rat.pathCount), 
-                CalcPathLength(appState.cat.path, appState.rat.pathCount)), 
-                10, GetScreenHeight() - 100, 20, BLACK);
-            DrawText(TextFormat("R: randomize blocks, J: jumping enabled (current: %s)", appState.jumpingEnabled ? "yes" : "no"), 10, GetScreenHeight() - 80, 20, BLACK);
-            DrawText(TextFormat("S: switch SDF function (current: %s)", appState.sdfFunction == 0 ? "euclidean" : (appState.sdfFunction == 1 ? "chebyshev" : "manhattan")), 10, GetScreenHeight() - 60, 20, BLACK);
-            DrawText(TextFormat("Q: Rat wall factor (how much the rat wants to stay close to walls): %d", appState.rat.wallFactor), 10, GetScreenHeight() - 40, 20, BLACK);
-            DrawText(TextFormat("V: switch visualization mode (current: %s)", appState.visualizeMode % 3 == 0 ? "none" : (appState.visualizeMode % 3 == 1 ? "map rat" : "map cat")), 10, GetScreenHeight() - 20, 20, BLACK);
+            // //----------------------------------------------------------------------------------
+            // // description and status
+            // //----------------------------------------------------------------------------------
+            // DrawText("Left click to toggle blocked cells, C: clear, Left mouse: toggle cell", 10, 10, 20, BLACK);
+            // DrawText("The red rat is small and likes to run close to walls", 10, 30, 20, RED);
+            // DrawText("The blue cat is big and can't fit through narrow paths and\nprefers the short path", 10, 50, 20, BLUE);
+            // DrawText(TextFormat("Rat path length: %.2f, Cat path length: %.2f", 
+            //     CalcPathLength(appState.rat.path, appState.rat.pathCount), 
+            //     CalcPathLength(appState.cat.path, appState.rat.pathCount)), 
+            //     10, GetScreenHeight() - 100, 20, BLACK);
+            // DrawText(TextFormat("R: randomize blocks, J: jumping enabled (current: %s)", appState.jumpingEnabled ? "yes" : "no"), 10, GetScreenHeight() - 80, 20, BLACK);
+            // DrawText(TextFormat("S: switch SDF function (current: %s)", appState.sdfFunction == 0 ? "euclidean" : (appState.sdfFunction == 1 ? "chebyshev" : "manhattan")), 10, GetScreenHeight() - 60, 20, BLACK);
+            // DrawText(TextFormat("Q: Rat wall factor (how much the rat wants to stay close to walls): %d", appState.rat.wallFactor), 10, GetScreenHeight() - 40, 20, BLACK);
+            // DrawText(TextFormat("V: switch visualization mode (current: %s)", appState.visualizeMode % 3 == 0 ? "none" : (appState.visualizeMode % 3 == 1 ? "map rat" : "map cat")), 10, GetScreenHeight() - 20, 20, BLACK);
         EndDrawing();
         //----------------------------------------------------------------------------------
     }

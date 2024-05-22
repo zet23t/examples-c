@@ -21,4 +21,14 @@ void SetDefaultFonts(Font *fonts);
 Rectangle DrawTextBoxAligned(const char *text, int fontSize, int x, int y, int w, int h, float alignX, float alignY, Color color);
 Rectangle DrawStyledTextBox(StyledTextBox styledTextBox);
 
+#define ARROW_NONE 0
+#define ARROW_UP 1
+#define ARROW_DOWN 2
+#define ARROW_LEFT 3
+#define ARROW_RIGHT 4
+
+void DrawBubble(int x, int y, int w, int h, int arrowType, int arrowX, int arrowY, Color color);
+void DrawGuy(int x, int y);
+void DrawHouse(int x, int y);
+
 #endif

@@ -1,4 +1,6 @@
 #include "util.h"
+#include "resources.h"
+#include "rlgl.h"
 
 static Font* defaultFonts;
 
@@ -27,6 +29,74 @@ Font GetFont(int size)
         }
     }
     return defaultFonts[0];
+}
+
+void DrawHouse(int x, int y)
+{
+    DrawTexturePro(resources.tileset, (Rectangle){80, 464, 48, 48}, (Rectangle){x * 2, y * 2, 96, 96}, (Vector2){0, 0}, 0, WHITE);
+}
+
+void DrawGuy(int x, int y)
+{
+    int animationTime = (int)(GetTime() * 2.0f) % 4;
+    DrawTexturePro(resources.tileset, 
+        (Rectangle){0, 464, 16, 16}, (Rectangle){x - 16, y - 28, 32, 32}, (Vector2){0, 0}, 0, WHITE);
+    // face
+    DrawTexturePro(resources.tileset, 
+        (Rectangle){16 * animationTime, 448, 16, 16}, (Rectangle){x - 14, y - 48, 32, 32}, (Vector2){0, 0}, 0, WHITE);
+
+}
+
+void DrawBubble(int x, int y, int w, int h, int arrowType, int arrowX, int arrowY, Color color)
+{
+    const int arrowXYMap[] = {
+        0, 0, // ARROW_NONE
+        32, 480, // ARROW_UP
+        32, 496, // ARROW_DOWN
+        48, 496, // ARROW_LEFT
+        64, 496 // ARROW_RIGHT
+    };
+    const NPatchInfo ninePatch = {
+        .source = {0, 480, 32, 32},
+        .left = 12,
+        .top = 12,
+        .right = 12,
+        .bottom = 12,
+        .layout = NPATCH_NINE_PATCH
+    };
+
+
+    rlPushMatrix();
+    rlScalef(2.0f, 2.0f, 1.0f);
+    
+    x /= 2;
+    y /= 2;
+    w /= 2;
+    h /= 2;
+    arrowX /= 2;
+    arrowY /= 2;
+
+    if (arrowType > 0)
+    {
+        int arrowXOffset = arrowXYMap[arrowType * 2];
+        int arrowYOffset = arrowXYMap[arrowType * 2 + 1];
+        DrawTexturePro(resources.tileset, 
+            (Rectangle){arrowXOffset, arrowYOffset, 16, 16}, 
+            (Rectangle){x + arrowX + 2, y + arrowY + 2, 16, 16}, (Vector2){0, 0}, 0, (Color){0, 0, 0, 128});
+    }
+    DrawTextureNPatch(resources.tileset, ninePatch, (Rectangle){x + 2, y + 2, w, h}, (Vector2){0, 0}, 0, (Color){0, 0, 0, 128});
+    
+    
+    if (arrowType > 0)
+    {
+        int arrowXOffset = arrowXYMap[arrowType * 2];
+        int arrowYOffset = arrowXYMap[arrowType * 2 + 1];
+        DrawTexturePro(resources.tileset, (Rectangle){arrowXOffset, arrowYOffset, 16, 16}, 
+            (Rectangle){x + arrowX, y + arrowY, 16, 16}, (Vector2){0, 0}, 0, color);
+    }
+    DrawTextureNPatch(resources.tileset, ninePatch, (Rectangle){x, y, w, h}, (Vector2){0, 0}, 0, color);
+
+    rlPopMatrix();
 }
 
 Rectangle DrawTextBoxAligned(const char *text, int fontSize, int x, int y, int w, int h, float alignX, float alignY, Color color)

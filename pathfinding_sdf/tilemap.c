@@ -5,6 +5,7 @@ typedef struct TileTypeSpriteLocation
 {
     unsigned char x;
     unsigned char y;
+    unsigned char width, height;
 } TileTypeSpriteLocation;
 
 // a mapping of a pattern of 2x2 vertices to a sprite in the tileset
@@ -20,13 +21,13 @@ TileTypeSpriteLocation tileTypeSpriteLocations[] = {
     {3, 0},
     // 0 0
     // 1 1
-    {1, 0},
+    {1, 0, 1, 0},
     // 0 1
     // 0 0
     {0, 4},
     // 0 1
     // 0 1
-    {0, 1},
+    {0, 1, 0, 2},
     // 0 1
     // 1 0 (does not exist)
     {0xff, 0xff},
@@ -41,13 +42,13 @@ TileTypeSpriteLocation tileTypeSpriteLocations[] = {
     {0xff, 0xff},
     // 1 0
     // 1 0
-    {3, 1},
+    {3, 1, 0, 2},
     // 1 0
     // 1 1
     {1, 3},
     // 1 1
     // 0 0
-    {1, 4},
+    {1, 4, 1, 0},
     // 1 1
     // 0 1
     {2, 2},
@@ -56,12 +57,84 @@ TileTypeSpriteLocation tileTypeSpriteLocations[] = {
     {1, 2},
     // 1 1
     // 1 1
-    {1, 1}
+    {1, 1, 1, 0}
 };
 
-// this is a naive and simple tile drawing implementation
-Tilemap Tilemap_draw(Tilemap *tilemap, Vector2 position, Vector2 scale, Color color)
+static int GetLocationRandom(int x, int y, int z, int max)
 {
+    unsigned int seed = x * 17 ^ y * 11 ^ z * 7 + 291123835;
+    seed = (seed % 1221) ^ seed ^ x * 19 + y * 31 + z * 29;
+    return seed % (max + 1);
+}
+
+// this is a naive and simple tile drawing implementation
+void Tilemap_draw(Tilemap *tilemap, Vector2 position, Vector2 scale, Color color)
+{
+    if (tilemap->filepath && GetFileModTime(tilemap->filepath) - 1 > tilemap->fileModTime)
+    {
+        tilemap->fileModTime = GetFileModTime(tilemap->filepath);
+        char* content = LoadFileText(tilemap->filepath);
+        if (content)
+        {
+            int lineCount = 0;
+            int height = 0;
+            int width = 0;
+            int numbersInLineCount = 0;
+            for (int i=0;content[i];i++)
+            {
+                if (content[i] == '\n')
+                {
+                    lineCount++;
+                    if (numbersInLineCount > 0)
+                    {
+                        if (width == 0) width = numbersInLineCount;
+                        else if (width != numbersInLineCount)
+                        {
+                            TraceLog(LOG_WARNING, "Tilemap width mismatch in line %d", lineCount);
+                        }
+                        height++;
+                    }
+                    numbersInLineCount = 0;
+                }
+                else if (content[i] >= '0' && content[i] <= '9')
+                {
+                    numbersInLineCount++;
+                }
+            }
+
+            if (tilemap->tiles) MemFree(tilemap->tiles);
+            tilemap->width = width;
+            tilemap->height = height;
+            tilemap->tiles = MemAlloc(sizeof(unsigned char) * width * height);
+            TraceLog(LOG_INFO, "Tilemap %s loaded with dimensions %dx%d", tilemap->filepath, width, lineCount);
+            lineCount = 0;
+            numbersInLineCount = 0;
+            int y = 0;
+            for (int i=0;content[i];i++)
+            {
+                if (content[i] == '\n')
+                {
+                    lineCount++;
+                    if (numbersInLineCount > 0)
+                    {
+                        y++;
+                    }
+
+                    numbersInLineCount = 0;
+                }
+                else if (content[i] >= '0' && content[i] <= '9')
+                {
+                    tilemap->tiles[y * width + numbersInLineCount] = content[i] - '0';
+                    numbersInLineCount++;
+                }
+            }
+        }
+        else
+        {
+            TraceLog(LOG_WARNING, "Failed to load tilemap file %s", tilemap->filepath);
+        }
+    }
+
     // the tilemap sprites are stored in a single texture
     // Each tile type is expressed by a group of sprites in the tileset.
     // The pattern describes the tile itself and its transitions to transparent
@@ -100,8 +173,12 @@ Tilemap Tilemap_draw(Tilemap *tilemap, Vector2 position, Vector2 scale, Color co
             unsigned char typeC = tilemap->tiles[tileIndex + tilemap->width];
             unsigned char typeD = tilemap->tiles[tileIndex + tilemap->width + 1];
 
+            Vector2 tilePosition = (Vector2){
+                position.x + x * tilemap->tileWidth * scale.x, 
+                position.y + y * tilemap->tileHeight * scale.y};
+
             // iterate over all possible types to determine which ones to draw 
-            for (int tileTypeId = 0; tileTypeId < 4; tileTypeId++)
+            for (int tileTypeId = 0; tileTypeId < 5; tileTypeId++)
             {
                 unsigned char typeAId = (typeA == tileTypeId) ? 1 : 0;
                 unsigned char typeBId = (typeB == tileTypeId) ? 1 : 0;
@@ -111,7 +188,8 @@ Tilemap Tilemap_draw(Tilemap *tilemap, Vector2 position, Vector2 scale, Color co
                 int tileTypePattern = typeAId << 3 | typeBId << 2 | typeCId << 1 | typeDId << 0;
                 if (tileTypePattern == 0) continue;
                 int hasDiagonalPattern = 0;
-                if (tileTypePattern == 0b1001) // diagonal pattern
+                // diagonal pattern handling
+                if (tileTypePattern == 0b1001) 
                 {
                     hasDiagonalPattern = 0b0001;
                     tileTypePattern = 0b1000;
@@ -124,12 +202,11 @@ Tilemap Tilemap_draw(Tilemap *tilemap, Vector2 position, Vector2 scale, Color co
 
                 paintTile:
                 TileTypeSpriteLocation spriteLocation = tileTypeSpriteLocations[tileTypePattern];
-                Vector2 tilePosition = (Vector2){
-                    position.x + x * tilemap->tileWidth * scale.x, 
-                    position.y + y * tilemap->tileHeight * scale.y};
+                int srcX = spriteLocation.x + (spriteLocation.width > 0 ? GetLocationRandom(x, y, tileTypeId, spriteLocation.width) : 0);
+                int srcY = spriteLocation.y + (spriteLocation.height > 0 ? GetLocationRandom(x, y, tileTypeId, spriteLocation.height) : 0);
                 Rectangle source = (Rectangle){
-                    (tileTypeId * 4 + spriteLocation.x) * tilemap->tileWidth, 
-                    spriteLocation.y * tilemap->tileHeight, 
+                    (tileTypeId * 4 + srcX) * tilemap->tileWidth, 
+                    srcY * tilemap->tileHeight, 
                     tilemap->tileWidth, tilemap->tileHeight
                 };
                 DrawTexturePro(resources.tileset, source, (Rectangle){tilePosition.x, tilePosition.y, tilemap->tileWidth * scale.x, tilemap->tileHeight * scale.y}, 
@@ -145,5 +222,4 @@ Tilemap Tilemap_draw(Tilemap *tilemap, Vector2 position, Vector2 scale, Color co
             }
         }
     }
-    return *tilemap;
 }

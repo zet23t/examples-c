@@ -3,32 +3,10 @@
 #include "tilemap.h"
 
 Tilemap tilemap = {0};
-unsigned char tiles[] = {
-0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-0, 0, 0, 0,  1, 1, 1, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-0, 0, 0, 2,  2, 2, 2, 1,  1, 1, 1, 1,  1, 1, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-0, 0, 2, 2,  2, 2, 2, 2,  2, 2, 2, 2,  2, 1, 1, 1,  1, 1, 1, 1,  1, 0, 0, 0,  0, 0, 0, 0,
-
-0, 0, 0, 0,  2, 2, 1, 2,  3, 3, 3, 2,  2, 2, 1, 1,  1, 1, 1, 1,  1, 1, 1, 0,  0, 0, 0, 0,
-0, 0, 2, 2,  1, 1, 1, 2,  2, 2, 3, 3,  2, 2, 2, 1,  1, 2, 3, 2,  2, 1, 1, 1,  0, 0, 0, 0,
-0, 0, 2, 2,  1, 0, 1, 2,  2, 3, 3, 3,  2, 2, 2, 1,  2, 3, 3, 3,  2, 1, 1, 1,  0, 0, 0, 0,
-0, 0, 3, 3,  1, 1, 1, 2,  2, 2, 2, 2,  2, 2, 1, 1,  2, 2, 3, 3,  3, 3, 3, 1,  1, 0, 0, 0,
-
-0, 0, 3, 3,  2, 2, 1, 0,  2, 2, 2, 2,  3, 3, 2, 2,  2, 1, 1, 3,  3, 3, 3, 1,  0, 0, 0, 0,
-0, 1, 2, 2,  2, 2, 2, 2,  2, 3, 3, 3,  3, 3, 3, 2,  2, 2, 0, 2,  1, 1, 1, 1,  0, 0, 0, 0,
-0, 1, 2, 2,  2, 2, 2, 2,  2, 2, 3, 3,  2, 2, 2, 2,  2, 2, 0, 0,  0, 2, 2, 0,  0, 0, 0, 0,
-0, 1, 1, 1,  2, 2, 2, 2,  2, 2, 3, 3,  2, 2, 2, 2,  2, 2, 1, 1,  0, 2, 2, 0,  0, 0, 0, 0,
-
-0, 0, 0, 1,  2, 2, 2, 2,  1, 2, 2, 2,  2, 2, 2, 0,  1, 1, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-0, 0, 0, 1,  1, 1, 2, 2,  1, 1, 1, 1,  1, 1, 1, 0,  3, 1, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-0, 0, 0, 0,  0, 1, 1, 0,  0, 0, 1, 1,  0, 0, 0, 3,  3, 3, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 3,  3, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
-};
 
 void page_0_onInit(TutorialPage *page) {
-    tilemap.tiles = tiles;
-    tilemap.width = 28;
-    tilemap.height = 16;
+    tilemap.filepath = "map.txt";
+    tilemap.fileModTime = -1;
     tilemap.tileWidth = 16;
     tilemap.tileHeight = 16;
 }
@@ -42,7 +20,10 @@ void page_0_onDraw(TutorialPage *page, float dt)
     int centerX = GetScreenWidth() / 2;
     int centerY = GetScreenHeight() / 2 + 20;
     int rectH = 100;
-    DrawRectangleRec((Rectangle){0, centerY - rectH / 2, GetScreenWidth(), rectH}, (Color){180, 200, 220, 200});
+    DrawHouse(200,30);
+    DrawBubble(centerX - 200, centerY - rectH / 2, 400, rectH, ARROW_DOWN, 
+        16, rectH, WHITE);
+    DrawGuy(centerX - 170, centerY + rectH / 2 + 80);
     DrawStyledTextBox((StyledTextBox){
         .text = "Pathfinding tutorial", 
         .fontSize = 30, 

@@ -6,12 +6,14 @@
 typedef struct Tilemap
 {
     unsigned char *tiles;
+    const char *filepath;
+    long fileModTime;
     int width;
     int height;
     int tileWidth;
     int tileHeight;
 } Tilemap;
 
-Tilemap Tilemap_draw(Tilemap *tilemap, Vector2 position, Vector2 scale, Color color);
+void Tilemap_draw(Tilemap *tilemap, Vector2 position, Vector2 scale, Color color);
 
 #endif

@@ -6,10 +6,12 @@
 typedef struct Resources
 {
     Texture2D tileset;
+    long tilesetModifiedTime;
 } Resources;
 
 extern Resources resources;
 
 void Resources_load();
+void Resources_update();
 
 #endif

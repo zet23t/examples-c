@@ -66,6 +66,8 @@ void DrawBubble(int x, int y, int w, int h, float arrowAngle, int arrowX, int ar
     y /= 2;
     w /= 2;
     h /= 2;
+    arrowX /= 2;
+    arrowY /= 2;
    
     if (arrowAngle >= 0.0f)
         DrawTexturePro(resources.tileset, 
@@ -73,11 +75,10 @@ void DrawBubble(int x, int y, int w, int h, float arrowAngle, int arrowX, int ar
             (Rectangle){x + arrowX + 2, y + arrowY + 2, 32, 16}, (Vector2){2, 8}, arrowAngle, (Color){0, 0, 0, 128});
     DrawTextureNPatch(resources.tileset, ninePatch, (Rectangle){x + 2, y + 2, w, h}, (Vector2){0, 0}, 0, (Color){0, 0, 0, 128});
     
-    
     if (arrowAngle >= 0.0f)
         DrawTexturePro(resources.tileset, 
             (Rectangle){32, 496, 32, 16}, 
-            (Rectangle){x + arrowX + 2, y + arrowY + 2, 32, 16}, (Vector2){2, 8}, arrowAngle, color);
+            (Rectangle){x + arrowX, y + arrowY, 32, 16}, (Vector2){2, 8}, arrowAngle, color);
     DrawTextureNPatch(resources.tileset, ninePatch, (Rectangle){x, y, w, h}, (Vector2){0, 0}, 0, color);
 
     rlPopMatrix();

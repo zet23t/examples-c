@@ -767,16 +767,40 @@ int lua_DrawTextBoxAligned(lua_State *L)
     return 4;
 }
 
+int lua_DrawTriangle(lua_State *L)
+{
+    float x1 = (float)luaL_checknumber(L, 1);
+    float y1 = (float)luaL_checknumber(L, 2);
+    float x2 = (float)luaL_checknumber(L, 3);
+    float y2 = (float)luaL_checknumber(L, 4);
+    float x3 = (float)luaL_checknumber(L, 5);
+    float y3 = (float)luaL_checknumber(L, 6);
+    DrawTriangle((Vector2){x1, y1}, (Vector2){x2, y2}, (Vector2){x3, y3}, luaDrawColor);
+    return 0;
+}
+
+int lua_DrawLine(lua_State *L)
+{
+    float x1 = (float)luaL_checknumber(L, 1);
+    float y1 = (float)luaL_checknumber(L, 2);
+    float x2 = (float)luaL_checknumber(L, 3);
+    float y2 = (float)luaL_checknumber(L, 4);
+    float thickness = (float)luaL_optnumber(L, 5, 1.0f);
+
+    DrawLineEx((Vector2){x1, y1}, (Vector2){x2, y2}, thickness, luaDrawColor);
+    return 0;
+}
+
 int lua_Sprite(lua_State *L)
 {
-    int srcX = luaL_checkinteger(L, 1);
-    int srcY = luaL_checkinteger(L, 2);
-    int srcWidth = luaL_checkinteger(L, 3);
-    int srcHeight = luaL_checkinteger(L, 4);
-    int dstX = luaL_checkinteger(L, 5);
-    int dstY = luaL_checkinteger(L, 6);
-    int dstWidth = luaL_optinteger(L, 7, srcWidth * 2);
-    int dstHeight = luaL_optinteger(L, 8, srcHeight * 2);
+    float srcX = (float)luaL_checknumber(L, 1);
+    float srcY = (float)luaL_checknumber(L, 2);
+    float srcWidth = (float)luaL_checknumber(L, 3);
+    float srcHeight = (float)luaL_checknumber(L, 4);
+    float dstX = (float)luaL_checknumber(L, 5);
+    float dstY = (float)luaL_checknumber(L, 6);
+    float dstWidth = (float)luaL_optnumber(L, 7, srcWidth * 2);
+    float dstHeight = (float)luaL_optnumber(L, 8, srcHeight * 2);
     Texture2D texture = resources.tileset;
     Rectangle srcRec = (Rectangle){ srcX, srcY, srcWidth, srcHeight };
     Rectangle dstRec = (Rectangle){ dstX, dstY, dstWidth, dstHeight };
@@ -815,6 +839,8 @@ void init_lua(lua_State *L)
         {"DrawTextBoxAligned", lua_DrawTextBoxAligned},
         {"DrawRectangle", lua_DrawRectangle},
         {"DrawBubble", lua_DrawBubble},
+        {"DrawTriangle", lua_DrawTriangle},
+        {"DrawLine", lua_DrawLine},
         {"Sprite", lua_Sprite},
         {"GetTime", lua_GetTime},
         {"IsNextPagePressed", lua_IsNextPagePressed},
@@ -914,6 +940,7 @@ int main(void)
     // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
+        Resources_update();
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_RIGHT)) luaCurrentStepIndex++;
         if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressed(KEY_LEFT)) luaCurrentStepIndex--;
         if (IsKeyPressed(KEY_R)) luaCurrentStepIndex = 0;
@@ -926,7 +953,9 @@ int main(void)
         if (IsKeyPressed(KEY_F5) || (GetTime() > reloadTimeOut && reloadTimeOut > 0.0f))
         {
             reloadTimeOut = 0.0f;
+            TraceLog(LOG_INFO, "closing old lua state\n");
             lua_close(L);
+            TraceLog(LOG_INFO, "reloading script\n");
             L = luaL_newstate();
             init_lua(L);
         }

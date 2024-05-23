@@ -44,3 +44,23 @@ function DrawTextBoxAligned(text, fontsize, x, y, w, h, align_x, align_y) return
 function IsNextPagePressed() return false end
 function IsPreviousPagePressed() return false end
 function GetCurrentStepIndex() return 0 end
+
+function DrawLine(x1, y1, x2, y2, thickness) end
+function DrawTriangle(x1, y1, x2, y2, x3, y3) end
+---Draws a sprite using the tilemap texture
+---@param srcX integer
+---@param srcY integer
+---@param srcWidth integer
+---@param srcHeight integer
+---@param dstX integer
+---@param dstY integer
+---@param dstWidth integer|nil uses srcWidth if nil
+---@param dstHeight integer|nil uses srcHeight if nil
+function Sprite(srcX,
+    srcY,
+    srcWidth,
+    srcHeight,
+    dstX,
+    dstY,
+    dstWidth,
+    dstHeight) end

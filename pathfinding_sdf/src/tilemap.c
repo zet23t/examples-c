@@ -67,6 +67,62 @@ static int GetLocationRandom(int x, int y, int z, int max)
     return seed % (max + 1);
 }
 
+void Tilemap_parse(Tilemap *tilemap, const char *content)
+{
+    int lineCount = 0;
+    int height = 0;
+    int width = 0;
+    int numbersInLineCount = 0;
+    for (int i=0;content[i];i++)
+    {
+        if (content[i] == '\n')
+        {
+            lineCount++;
+            if (numbersInLineCount > 0)
+            {
+                if (width == 0) width = numbersInLineCount;
+                else if (width != numbersInLineCount)
+                {
+                    TraceLog(LOG_WARNING, "Tilemap width mismatch in line %d", lineCount);
+                }
+                height++;
+            }
+            numbersInLineCount = 0;
+        }
+        else if (content[i] >= '0' && content[i] <= '9')
+        {
+            numbersInLineCount++;
+        }
+    }
+
+    if (tilemap->tiles) MemFree(tilemap->tiles);
+    tilemap->width = width;
+    tilemap->height = height;
+    tilemap->tiles = MemAlloc(sizeof(unsigned char) * width * height);
+    TraceLog(LOG_INFO, "Tilemap %s loaded with dimensions %dx%d", tilemap->filepath ? tilemap->filepath : "<no file>", width, lineCount);
+    lineCount = 0;
+    numbersInLineCount = 0;
+    int y = 0;
+    for (int i=0;content[i];i++)
+    {
+        if (content[i] == '\n')
+        {
+            lineCount++;
+            if (numbersInLineCount > 0)
+            {
+                y++;
+            }
+
+            numbersInLineCount = 0;
+        }
+        else if (content[i] >= '0' && content[i] <= '9')
+        {
+            tilemap->tiles[y * width + numbersInLineCount] = content[i] - '0';
+            numbersInLineCount++;
+        }
+    }
+}
+
 // this is a naive and simple tile drawing implementation
 void Tilemap_draw(Tilemap *tilemap, Vector2 position, Vector2 scale, Color color)
 {
@@ -76,58 +132,7 @@ void Tilemap_draw(Tilemap *tilemap, Vector2 position, Vector2 scale, Color color
         char* content = LoadFileText(tilemap->filepath);
         if (content)
         {
-            int lineCount = 0;
-            int height = 0;
-            int width = 0;
-            int numbersInLineCount = 0;
-            for (int i=0;content[i];i++)
-            {
-                if (content[i] == '\n')
-                {
-                    lineCount++;
-                    if (numbersInLineCount > 0)
-                    {
-                        if (width == 0) width = numbersInLineCount;
-                        else if (width != numbersInLineCount)
-                        {
-                            TraceLog(LOG_WARNING, "Tilemap width mismatch in line %d", lineCount);
-                        }
-                        height++;
-                    }
-                    numbersInLineCount = 0;
-                }
-                else if (content[i] >= '0' && content[i] <= '9')
-                {
-                    numbersInLineCount++;
-                }
-            }
-
-            if (tilemap->tiles) MemFree(tilemap->tiles);
-            tilemap->width = width;
-            tilemap->height = height;
-            tilemap->tiles = MemAlloc(sizeof(unsigned char) * width * height);
-            TraceLog(LOG_INFO, "Tilemap %s loaded with dimensions %dx%d", tilemap->filepath, width, lineCount);
-            lineCount = 0;
-            numbersInLineCount = 0;
-            int y = 0;
-            for (int i=0;content[i];i++)
-            {
-                if (content[i] == '\n')
-                {
-                    lineCount++;
-                    if (numbersInLineCount > 0)
-                    {
-                        y++;
-                    }
-
-                    numbersInLineCount = 0;
-                }
-                else if (content[i] >= '0' && content[i] <= '9')
-                {
-                    tilemap->tiles[y * width + numbersInLineCount] = content[i] - '0';
-                    numbersInLineCount++;
-                }
-            }
+            Tilemap_parse(tilemap, content);
         }
         else
         {
@@ -166,19 +171,30 @@ void Tilemap_draw(Tilemap *tilemap, Vector2 position, Vector2 scale, Color color
     for (int y = 0; y < maxY; y++)
     {
         int tileIndex = y * tilemap->width;
+        Vector2 tilePosition = (Vector2){
+                0, 
+                position.y + y * tilemap->tileHeight * scale.y};
         for (int x = 0; x < maxX; x++, tileIndex++)
         {
-            unsigned char typeA = tilemap->tiles[tileIndex];
-            unsigned char typeB = tilemap->tiles[tileIndex + 1];
-            unsigned char typeC = tilemap->tiles[tileIndex + tilemap->width];
-            unsigned char typeD = tilemap->tiles[tileIndex + tilemap->width + 1];
+            int typeA = tilemap->tiles[tileIndex] - 1;
+            int typeB = tilemap->tiles[tileIndex + 1] - 1;
+            int typeC = tilemap->tiles[tileIndex + tilemap->width] - 1;
+            int typeD = tilemap->tiles[tileIndex + tilemap->width + 1] - 1;
+            int minType = (typeA < typeB) ? typeA : typeB;
+            minType = (minType < typeC) ? minType : typeC;
+            minType = (minType < typeD) ? minType : typeD;
+            int maxType = (typeA > typeB) ? typeA : typeB;
+            maxType = (maxType > typeC) ? maxType : typeC;
+            maxType = (maxType > typeD) ? maxType : typeD;
+            if (minType < 0) {
+                if (maxType == -1) continue;
+                minType = 0;
+            }
 
-            Vector2 tilePosition = (Vector2){
-                position.x + x * tilemap->tileWidth * scale.x, 
-                position.y + y * tilemap->tileHeight * scale.y};
+            tilePosition.x = position.x + x * tilemap->tileWidth * scale.x;
 
             // iterate over all possible types to determine which ones to draw 
-            for (int tileTypeId = 0; tileTypeId < 5; tileTypeId++)
+            for (int tileTypeId = minType; tileTypeId <= maxType; tileTypeId++)
             {
                 unsigned char typeAId = (typeA == tileTypeId) ? 1 : 0;
                 unsigned char typeBId = (typeB == tileTypeId) ? 1 : 0;

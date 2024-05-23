@@ -14,6 +14,7 @@ typedef struct Tilemap
     int tileHeight;
 } Tilemap;
 
+void Tilemap_parse(Tilemap *tilemap, const char *content);
 void Tilemap_draw(Tilemap *tilemap, Vector2 position, Vector2 scale, Color color);
 
 #endif

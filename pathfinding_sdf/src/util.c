@@ -47,15 +47,8 @@ void DrawGuy(int x, int y)
 
 }
 
-void DrawBubble(int x, int y, int w, int h, int arrowType, int arrowX, int arrowY, Color color)
+void DrawBubble(int x, int y, int w, int h, float arrowAngle, int arrowX, int arrowY, Color color)
 {
-    const int arrowXYMap[] = {
-        0, 0, // ARROW_NONE
-        32, 480, // ARROW_UP
-        32, 496, // ARROW_DOWN
-        48, 496, // ARROW_LEFT
-        64, 496 // ARROW_RIGHT
-    };
     const NPatchInfo ninePatch = {
         .source = {0, 480, 32, 32},
         .left = 12,
@@ -73,27 +66,18 @@ void DrawBubble(int x, int y, int w, int h, int arrowType, int arrowX, int arrow
     y /= 2;
     w /= 2;
     h /= 2;
-    arrowX /= 2;
-    arrowY /= 2;
-
-    if (arrowType > 0)
-    {
-        int arrowXOffset = arrowXYMap[arrowType * 2];
-        int arrowYOffset = arrowXYMap[arrowType * 2 + 1];
+   
+    if (arrowAngle >= 0.0f)
         DrawTexturePro(resources.tileset, 
-            (Rectangle){arrowXOffset, arrowYOffset, 16, 16}, 
-            (Rectangle){x + arrowX + 2, y + arrowY + 2, 16, 16}, (Vector2){0, 0}, 0, (Color){0, 0, 0, 128});
-    }
+            (Rectangle){32, 496, 32, 16}, 
+            (Rectangle){x + arrowX + 2, y + arrowY + 2, 32, 16}, (Vector2){2, 8}, arrowAngle, (Color){0, 0, 0, 128});
     DrawTextureNPatch(resources.tileset, ninePatch, (Rectangle){x + 2, y + 2, w, h}, (Vector2){0, 0}, 0, (Color){0, 0, 0, 128});
     
     
-    if (arrowType > 0)
-    {
-        int arrowXOffset = arrowXYMap[arrowType * 2];
-        int arrowYOffset = arrowXYMap[arrowType * 2 + 1];
-        DrawTexturePro(resources.tileset, (Rectangle){arrowXOffset, arrowYOffset, 16, 16}, 
-            (Rectangle){x + arrowX, y + arrowY, 16, 16}, (Vector2){0, 0}, 0, color);
-    }
+    if (arrowAngle >= 0.0f)
+        DrawTexturePro(resources.tileset, 
+            (Rectangle){32, 496, 32, 16}, 
+            (Rectangle){x + arrowX + 2, y + arrowY + 2, 32, 16}, (Vector2){2, 8}, arrowAngle, color);
     DrawTextureNPatch(resources.tileset, ninePatch, (Rectangle){x, y, w, h}, (Vector2){0, 0}, 0, color);
 
     rlPopMatrix();

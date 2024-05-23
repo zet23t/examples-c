@@ -4,5 +4,5 @@ Resources resources;
 
 void Resources_load()
 {
-    resources.tileset = LoadTexture("tileset.png");
+    resources.tileset = LoadTexture("resources/tileset.png");
 }

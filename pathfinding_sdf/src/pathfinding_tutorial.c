@@ -38,18 +38,6 @@ void Tutorial_init()
 
     tutorialState.pages[tutorialState.currentPage].onEnter(&tutorialState.pages[tutorialState.currentPage]);
 
-    int codePoints[256];
-    for (int i=0;i<256;i++)
-    {
-        codePoints[i] = i + 32;
-    }
-    codePoints[200] = 0x25CF;
-    SetDefaultFonts((Font[]){
-        LoadFontEx("Roboto-Bold.ttf", 20, codePoints, 256),
-        LoadFontEx("Roboto-Bold.ttf", 30, codePoints, 256),
-        LoadFontEx("Roboto-Bold.ttf", 40, codePoints, 256),
-        {0}
-    });
 }
 
 void Tutorial_update(float dt)

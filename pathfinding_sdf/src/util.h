@@ -27,7 +27,7 @@ Rectangle DrawStyledTextBox(StyledTextBox styledTextBox);
 #define ARROW_LEFT 3
 #define ARROW_RIGHT 4
 
-void DrawBubble(int x, int y, int w, int h, int arrowType, int arrowX, int arrowY, Color color);
+void DrawBubble(int x, int y, int w, int h, float arrowAngle, int arrowX, int arrowY, Color color);
 void DrawGuy(int x, int y);
 void DrawHouse(int x, int y);
 

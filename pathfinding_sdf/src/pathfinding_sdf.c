@@ -872,6 +872,12 @@ int lua_Sprite(lua_State *L)
     return 0;
 }
 
+int lua_GetFrameTime(lua_State *L)
+{
+    lua_pushnumber(L, GetFrameTime());
+    return 1;
+}
+
 int lua_GetTime(lua_State *L)
 {
     lua_pushnumber(L, GetTime());
@@ -918,6 +924,7 @@ void init_lua(lua_State *L)
         {"DrawLine", lua_DrawLine},
         {"Sprite", lua_Sprite},
         {"GetTime", lua_GetTime},
+        {"GetFrameTime", lua_GetFrameTime},
         {"IsNextPagePressed", lua_IsNextPagePressed},
         {"IsPreviousPagePressed", lua_IsPreviousPagePressed},
         {"IsMenuKeyPressed", lua_IsMenuKeyPressed},

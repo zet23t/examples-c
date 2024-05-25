@@ -18,7 +18,7 @@ end
 feedKeywords(controlKeywords, "408f")
 feedKeywords(literalKeywords, "00af")
 feedKeywords(expressionKeywords, "444f")
-feedKeywords(scopingKeywords, "006f")
+feedKeywords(scopingKeywords, "00ff")
 
 local function syntaxHighlightLua(text)
     local minIndention = 255
@@ -32,6 +32,10 @@ local function syntaxHighlightLua(text)
     end
     for i=1,#lines do
         local line = lines[i]
+        local code, comment = line:match "^(.-)%s*(%-%-.*)$"
+        if code then
+            line = code
+        end
         line = line:sub(minIndention + 1)
         line = line:gsub("%w+", function(word)
             local color = keywords[word]
@@ -40,6 +44,9 @@ local function syntaxHighlightLua(text)
             end
         end)
         lines[i] = ("[color=4448]%02d[/color] %s"):format(i, line)
+        if comment then
+            lines[i] = lines[i] .. " [color=484f]" .. comment .. "[/color]"
+        end
     end
     return table.concat(lines, "\n")
 end
@@ -111,7 +118,7 @@ end
 local trimCache = {}
 local function trim(s)
     if trimCache[s] then
-        return trimCache[s]
+        return table.unpack(trimCache[s])
     end
     local result = {}
     for line in s:gmatch("[^\r\n]*") do
@@ -122,8 +129,8 @@ local function trim(s)
         table.remove(result)
     end
     local trimmed = table.concat(result, "\n")
-    trimCache[s] = trimmed
-    return trimmed
+    trimCache[s] = {trimmed, #result}
+    return trimmed, #result
 end
 
 local guyPos = {x = 400.5, y = 100}
@@ -154,6 +161,14 @@ local function guyDraw()
     Sprite(16 * animationTime, 448, 16, 16, x - 14, y - 48);
 end
 
+local function moveValueTo(value, target, speed, dt)
+    local diff = target - value
+    local change = diff * speed * dt
+    if math.abs(diff) < math.abs(change) then
+        return target
+    end
+    return value + change
+end
 
 local function eval(value, arg)
     if type(value) == "function" then
@@ -162,9 +177,17 @@ local function eval(value, arg)
     return value
 end
 
+local codeExecutorRunToStepWarpRangeDefault = 16
+local codeExecutorStepsPerSecondDefault = 3
 local codeExecutorRunning = false
 local codeExecutorAlpha = 255
 local codeExecutorShowLine = nil
+local codeExecutorRunToLine = nil
+local codeExecutorSetStep = nil
+local codeExecutorRunToStep = nil
+local codeExecutorRunToStepWarpRange = codeExecutorRunToStepWarpRangeDefault
+local codeExecutorStepsPerSecond = codeExecutorStepsPerSecondDefault
+
 local function codeExecutor(code, x, y, w, h, fontsize, contextEnv, stackInfoHandler)
     local func, err = load(code, nil, "t", contextEnv)
     if not func then
@@ -172,7 +195,8 @@ local function codeExecutor(code, x, y, w, h, fontsize, contextEnv, stackInfoHan
         return
     end
 
-    local highlightedText = trim(err or syntaxHighlightLua(code))
+    local highlightedText,lineCount = trim(err or syntaxHighlightLua(code))
+    local codeHeight = math.abs(fontsize) * lineCount
     w = w or 400
     fontsize = fontsize or 20
     x = x or math.floor((GetScreenSize() - w) / 2)
@@ -246,35 +270,67 @@ local function codeExecutor(code, x, y, w, h, fontsize, contextEnv, stackInfoHan
     local dt = GetTime() - t1
     print("Executed code in ",dt)
 
-    local stepsPerSecond = 50
-    local nextStep = GetTime() + 1 / stepsPerSecond
+    local nextStep = GetTime() + 1 / codeExecutorStepsPerSecond
     local currentLine = 1
     local currentStackInfo = {}
+    local currentLineShown = 1
+    local maxScrollSpeed = 2
     return function(step)
         if step.activeTime == 0 then
             currentStep = 0
             nextStep = 0
         end
-        if GetTime() > nextStep and currentStep < totalLineExec and getInfosAt and codeExecutorRunning then
-            nextStep = GetTime() + 1 / stepsPerSecond
-            currentStep = currentStep + 1
+        local time = GetTime()
+        local remainingSteps = 10
+        while time > nextStep and currentStep < totalLineExec and getInfosAt and 
+            (codeExecutorRunning or codeExecutorSetStep or 
+            (codeExecutorRunToLine and codeExecutorRunToLine ~= currentLine) or
+            (codeExecutorRunToStep)
+            ) and remainingSteps > 0
+        do
+            remainingSteps = remainingSteps - 1
+            nextStep = nextStep + 1 / codeExecutorStepsPerSecond
+            if codeExecutorRunToStep and not codeExecutorSetStep then
+                if codeExecutorRunToStep > currentStep + 1 then
+                    currentStep = math.max(currentStep + 1, codeExecutorRunToStep - codeExecutorRunToStepWarpRange)
+                    
+                elseif codeExecutorRunToStep < currentStep - 1 then
+                    currentStep = math.min(currentStep - 1, codeExecutorRunToStep + codeExecutorRunToStepWarpRange)
+                else
+                    currentStep = codeExecutorRunToStep
+                    codeExecutorRunToStep = nil
+                end
+            else
+                currentStep = currentStep + 1
+            end
+            if codeExecutorSetStep then
+                currentStep = math.min(codeExecutorSetStep, totalLineExec)
+                codeExecutorSetStep = nil
+            end
             currentStackInfo = getInfosAt(currentStep)
             currentLine = currentStackInfo.line
+            if codeExecutorRunToLine and currentLine == codeExecutorRunToLine then
+                codeExecutorRunToLine = nil
+            end
         end
         if stackInfoHandler then
             stackInfoHandler(step, currentStackInfo)
         end
+        local dt = GetFrameTime()
+        currentLineShown = moveValueTo(currentLineShown, codeExecutorShowLine or currentLine, maxScrollSpeed, dt)
+        local shownLineY = math.abs(fontsize) * (currentLineShown - 1)
+        local offsetY = math.max(0, math.min(shownLineY, codeHeight - h + 8))
         SetColorAlpha(codeExecutorAlpha)
         SetColor(240,230,200,255)
         DrawRectangle(x, y, w, h)
-        local currentLineY = 8 + math.abs(fontsize) * (currentLine - 1)
+        local currentLineY = 8 + math.abs(fontsize) * (currentLine - 1) - offsetY
         BeginScissorMode(x, y, w, h)
         SetColor(255,190,90,255)
         DrawRectangle(x, currentLineY, w, math.abs(fontsize))
         --print(currentLineY)
         
         SetColor(0,0,0,255)
-        DrawTextBoxAligned(highlightedText, fontsize, x+8, y+8, w-16, h-16, 0, 0)
+        DrawTextBoxAligned(highlightedText, fontsize, x+8, math.floor(y+8 - offsetY), w-16, h-16, 0, 0)
         SetColor(220,200,130,255)
         local stackWindowWidth = 250
         local stackWindowX = x + w - stackWindowWidth
@@ -289,14 +345,51 @@ local function codeExecutor(code, x, y, w, h, fontsize, contextEnv, stackInfoHan
             local func = info.func
             local locals = info.locals
             SetColor(255,255,255,255)
-            DrawTextBoxAligned(("%d: %s"):format(#currentStackInfo - i, func.name or "<???>"), 15, stackWindowX + 10, stackY, stackWindowWidth - 20, 20, 0, 0)
+            DrawTextBoxAligned(("%d: %s"):format(#currentStackInfo - i, func.name or "Main"), 15, stackWindowX + 10, stackY, stackWindowWidth - 20, 20, 0, 0)
             stackY = stackY + 20
             for j=1,#locals do
                 local localInfo = locals[j]
                 SetColor(0,0,0,255)
                 DrawTextBoxAligned(localInfo.name, 15, stackWindowX + 10, stackY, stackWindowWidth - 20, 20, 0, 0)
                 SetColor(0,0,0,255)
-                DrawTextBoxAligned(tostring(localInfo.value), 15, stackWindowX + 10, stackY, stackWindowWidth - 20, 20, 1, 0)
+                local asString
+                if type(localInfo.value) == "table" then
+                    asString = "{ "
+                    local count = 0
+                    local isInteger = true
+                    for k,v in pairs(localInfo.value) do
+                        count = count + 1
+                    end
+                    isInteger = count == #localInfo.value
+                    if isInteger then
+                        for i=1,math.min(count, 3) do
+                            asString = asString .. tostring(localInfo.value[i]) .. ", "
+                        end
+                        if count > 3 then
+                            asString = asString .. "...}"
+                        else
+                            asString = asString:sub(1, -2) .. "}"
+                        end
+                    else
+                        local n = 2
+                        for k,v in pairs(localInfo.value) do
+                            asString = asString .. tostring(k) .. " = " .. tostring(v) .. ", "
+                            n = n - 1
+                            count = count - 1
+                            if n <= 0 then
+                                break
+                            end
+                        end
+                        if count > 0 then
+                            asString = asString .. "...}"
+                        else
+                            asString = asString:sub(1, -3) .. " }"
+                        end
+                    end
+                else
+                    asString = tostring(localInfo.value)
+                end
+                DrawTextBoxAligned(asString, 15, stackWindowX + 10, stackY, stackWindowWidth - 20, 20, 1, 0)
                 stackY = stackY + 20
             end
         end
@@ -676,13 +769,17 @@ local steps = {
             192, bounceTween(300,280,.25), 1, easeOutElasticTween(0, 1, 1.5), 8, 16, 4, 10)
     },
 
+    -----------------------------------------------------------------------------------------------
+    -----------------------------------------------------------------------------------------------
+    -----------------------------------------------------------------------------------------------
+
     {
         chapter = "Depth First Search",
-        step = {0,5},
+        step = {0,26},
         draw = drawGrid(0,0,24,13)
     },
     {
-        step = {0,5},
+        step = {0,26},
         draw = drawMapInfoSquares(0,0,24,13)
     },
     {
@@ -695,20 +792,25 @@ local steps = {
         step = 1,
         draw = detachedBubble[[
             Depth First Search can be implemented
-            with a fairly simple recursive algorithm:
+            with a fairly simple recursive algorithm.
+
+            This chapter will explain with lots of detail
+            how program execution works. If you
+            are familar with programming, you can 
+            skip this chapter.
         ]]
     },
     {
-        step = {0, 5},
+        step = {0, 26},
         activate = moveGuyTo(512, 298)
     },
     {
-        step = {0,5},
+        step = {0,26},
         draw = drawAnimatedSprite(0, 432, 16, 16, 
             192, bounceTween(300,280,.25), 1, easeOutElasticTween(0, 1, 1.5), 8, 16, 4, 10)
     },
     {
-        step = {2,5},
+        step = {2,26},
         draw = codeExecutor([[
             function visit(x, y, visited)
               if x < 0 or x >= width or y < 0 or y >= height then
@@ -773,8 +875,20 @@ local steps = {
             end)
     },
     {
+        step = {0, 1},
+        activate = function() 
+            codeExecutorSetStep = 0
+            codeExecutorRunToStep = nil
+            codeExecutorShowLine = 1
+        end,
+    },
+    {
         step = 2,
-        activate = function() codeExecutorShowLine = 1 end,
+        activate = function() 
+            codeExecutorSetStep = 0
+            codeExecutorShowLine = 1
+            codeExecutorRunToStep = nil
+        end,
         draw = speechBubblePointAt([[
             For the purpose of this demonstration, we
             use [color=008f]Lua[/color] as a scripting language. This way
@@ -783,6 +897,379 @@ local steps = {
             We start out with a function called [color=808f]visit[/color].
             But this is only the function declaration.]], 400, 0, 330, nil, 0, -16, 20)
     },
+    {
+        step = 3,
+        activate = function() 
+            codeExecutorSetStep = 0
+            codeExecutorShowLine = 15
+            codeExecutorRunToStep = nil
+        end,
+        draw = speechBubblePointAt([[
+            The actual execution begins down here.]], 200, 170, 330, nil, 0, -16, 20)
+    },
+    {
+        step = 4,
+        activate = function() 
+            codeExecutorShowLine = 15 
+            codeExecutorSetStep = 3
+            codeExecutorRunToStep = nil
+        end,
+        draw = speechBubblePointAt([[
+            Let's start the program execution!]], 200, 170, 330, nil, 0, -16, 20)
+    },
+    {
+        step = 5,
+        activate = function() 
+            codeExecutorShowLine = nil 
+            codeExecutorSetStep = 3
+            codeExecutorRunToStep = nil
+        end,
+        draw = speechBubblePointAt([[
+            On the right we see the current stack - 
+            as our program has only just begun, 
+            there's not much to see.]], 200, 70, 330, nil, 180, 350, 20)
+    },
+    {
+        step = 6,
+        activate = function() 
+            codeExecutorShowLine = 1 
+            codeExecutorSetStep = 4
+            codeExecutorRunToStep = nil
+        end,
+        draw = speechBubblePointAt([[
+            Let's move one step in our program.
+            Now we can see some local variables. 
+            Currently it's just the first call, 
+            so we see only the function's arguments: 
+            [color=800f]x[/color], [color=800f]y[/color] and the array called [color=800f]visited[/color] that 
+            stores the visited cells - right now, it's 
+            empty. ]], 200, 70, 330, nil, 180, 350, 20)
+    },
+    {
+        step = 7,
+        activate = function() 
+            codeExecutorShowLine = 1 
+            codeExecutorSetStep = 4
+            codeExecutorRunToStep = nil
+        end,
+        draw = speechBubblePointAt([[
+            In the currently executed line, the program
+            checks if x or y is outside our map's area
+            and if it is not, we return.]], 100, 70, 330, nil, 90, 150, -20)
+    },
+    {
+        step = 7,
+        draw = speechBubblePointAt([[
+            For convenience, we draw the current x 
+            and y position on the map - it starts at
+            my position - of course!]], 130, 270, 330, nil, 180, 360, 20)
+    },
+    {
+        step = 8,
+        activate = function() 
+            codeExecutorShowLine = 1 
+            codeExecutorRunToStep = 6
+        end,
+        draw = speechBubblePointAt([[
+            We skipped to this line - we used [color=800f]x[/color] and [color=800f]y[/color]
+            to calculate the [color=800f]index[/color]. This is a number
+            we use as an adress. The [color=800f]visited[/color] and 
+            [color=800f]blocked[/color] variables ([color=800f]blocked[/color] is a 
+            global value, same as [color=800f]width[/color] and [color=800f]height[/color]).
+            Currently, the [color=800f]visited[/color] table is empty and 
+            the field isn't blocked either, so this 
+            evaluates to [color=888f]false[/color].]], 100, 170, 330, nil, 90, 150, -20)
+    },
+    {
+        step = 9,
+        activate = function() 
+            codeExecutorShowLine = 4 
+            codeExecutorRunToStep = 7
+        end,
+        draw = speechBubblePointAt([[
+            We haven't exited the function's call, so we 
+            found a cell we can visit! Let's mark the 
+            cell as visited, so we know we don't have 
+            to look at it again.]], 100, 150, 330, nil, 90, 120, -24)
+    },
+    {
+        step = 10,
+        activate = function() 
+            codeExecutorShowLine = 4 
+            codeExecutorRunToStep = 8
+        end,
+        draw = speechBubblePointAt([[
+            Note how the [color=800f]visited[/color] table has now 
+            an entry.]], 450, 130, 330, nil, 90, 300, -24)
+    },
+    {
+        step = 10,
+        draw = speechBubblePointAt([[
+            To help understand the content of the [color=800f]visited[/color] table, 
+            we draw it's content as purple colored rectangles 
+            in the map.]], 
+            400, 320, 400, nil, 90, 110, -24)
+    },
+    {
+        step = 11,
+        activate = function() 
+            codeExecutorShowLine = 4 
+            codeExecutorSetStep = 8
+        end,
+        draw = speechBubblePointAt([[
+            The code is now about to call the [color=a00f]visit[/color] 
+            function from within the [color=a00f]visit[/color] funtion.
+            This is called "recursion". However, we will 
+            change the position to look at to the left, by 
+            subtracting 1 from [color=800f]x[/color].]], 100, 170, 350, nil, 90, 30, -24)
+    },
+    {
+        step = {12,14},
+        activate = function() 
+            codeExecutorShowLine = 1 
+            codeExecutorSetStep = 9
+        end,
+        draw = speechBubblePointAt([[
+            Look, many things have changed 
+            now: the program jumped up ...]], 30, 70, 280, nil, 90, 30, -24)
+    },
+    {
+        step = {13,14},
+        draw = speechBubblePointAt([[
+            ... and a new stack 
+            entry appeared. The
+            [color=800f]x[/color] value changed
+            from 16 to 15.]], 330, 12, 180, nil, 180, 210, 24)
+    },
+    {
+        step = 14,
+        draw = speechBubblePointAt([[
+            Our new coordinate in the program
+            is now here. We draw the a black 
+            line from the place we came from
+            to the new position.]], 180, 265, 270, nil, 180, 290, 24)
+    },
+    {
+        step = 15,
+        activate = function() 
+            codeExecutorShowLine = 5 
+            codeExecutorRunToStep = 13
+        end,
+        draw = speechBubblePointAt([[
+            After proceeding a little, the
+            [color=800f]visited[/color] array is flagged and we
+            will recurse again with another
+            step to the left ...]], 140, 265, 270, nil, 180, 290, 24)
+    },
+    {
+        step = 16,
+        activate = function() 
+            codeExecutorShowLine = 1
+            codeExecutorSetStep = 14
+        end,
+        draw = speechBubblePointAt([[
+            After proceeding a little, the
+            [color=800f]visited[/color] array is flagged and we
+            will recurse again with another
+            step to the left ...]], 140, 265, 270, nil, 180, 290, 24)
+    },
+    {
+        step = 17,
+        activate = function() 
+            codeExecutorShowLine = 1
+            codeExecutorRunToStep = 17
+        end,
+        draw = speechBubblePointAt([[
+            Since the field is blocked,the 
+            recursive call will end here and we 
+            will return to the source of the call.]], 140, 265, 270, nil, 180, 290, 24)
+    },
+    {
+        step = 18,
+        activate = function() 
+            codeExecutorShowLine = 4
+            codeExecutorRunToStep = 18
+        end,
+        draw = speechBubblePointAt([[
+            After returning, the code proceeds
+            to the next cell to check, which is
+            to the right - which we have
+            flagged already as visited...]], 180, 265, 270, nil, 180, 290, 24)
+    },
+    {
+        step = 19,
+        activate = function() 
+            codeExecutorShowLine = nil
+            codeExecutorRunToStep = 23
+            codeExecutorRunToStepWarpRange = codeExecutorRunToStepWarpRangeDefault
+            codeExecutorStepsPerSecond = codeExecutorStepsPerSecondDefault
+        end,
+        draw = speechBubblePointAt([[
+            This recursion did therefore return
+            quickly and we will now go down]], 180, 265, 270, nil, 180, 290, 24)
+    },
+    {
+        step = 20,
+        activate = function() 
+            codeExecutorShowLine = nil
+            codeExecutorRunToStep = 205
+            codeExecutorRunToStepWarpRange = 500
+            codeExecutorStepsPerSecond = 50
+        end,
+        draw = speechBubblePointAt([[
+            We will now speed up the execution
+            for a while.]], 20, 265, 270, nil, -1, 290, 24)
+    },
+    {
+        step = 21,
+        activate = function() 
+            codeExecutorShowLine = nil
+            codeExecutorSetStep = 205
+            codeExecutorRunToStepWarpRange = codeExecutorRunToStepWarpRangeDefault
+            codeExecutorStepsPerSecond = codeExecutorStepsPerSecondDefault
+        end,
+        draw = speechBubblePointAt([[
+            We have hit now the first real
+            dead end! Watch how it will 
+            now backtrack! ]], 20, 265, 270, nil, -1, 290, 24)
+    },
+    {
+        step = 22,
+        activate = function() 
+            codeExecutorShowLine = nil
+            codeExecutorRunToStepWarpRange = 500
+            codeExecutorSetStep = 205
+            codeExecutorRunToStep = 365
+            codeExecutorStepsPerSecond = 10
+        end,
+        draw = speechBubblePointAt([[
+            As you can see, it will faithfully,
+            track back and until it finds an
+            unexplored region.]], 20, 265, 270, nil, -1, 290, 24)
+    },
+    {
+        step = {23,24},
+        activate = function()
+            codeExecutorShowLine = nil
+            codeExecutorSetStep = 1510
+            codeExecutorStepsPerSecond = 10
+            codeExecutorRunToStep = nil
+            codeExecutorAlpha = 255
+            codeExecutorRunning = false
+        end,
+        draw = speechBubblePointAt([[
+            Let's jump forward to our flag!]], 20, 330, 270, nil, 90, 170, -24)
+    },
+    {
+        step = 24,
+        draw = speechBubblePointAt([[
+            The code doesn't handle this case, 
+            so it would just go on. 
+            However, we the code doesn't handle
+            the case of finding the flag.]], 320, 250, 330, nil, -1, 170, -24)
+    },
+    {
+        step = 25,
+        activate = function() 
+            codeExecutorShowLine = nil
+            codeExecutorSetStep = 1510
+            codeExecutorStepsPerSecond = 150
+            codeExecutorRunToStep = nil
+            codeExecutorRunning = true
+            codeExecutorAlpha = 128
+        end,
+        draw = speechBubblePointAt([[
+            So the program will run until every
+            part of the map has been explored.]], 320, 250, 330, nil, -1, 170, -24)
+    },
+    {
+        step = 26,
+        activate = function() 
+            codeExecutorShowLine = nil
+            codeExecutorSetStep = 5000
+            codeExecutorRunToStep = nil
+            codeExecutorRunning = false
+            codeExecutorAlpha = 255
+        end,
+        draw = speechBubblePointAt([[
+            But the path obtained through this
+            algorithm would not have been useful 
+            anyway.
+            It is however a simple algorithm that
+            can be used to find out if a connection
+            between two points exists.
+            ]], 120, 250, 330, nil, 180, 360, 28)
+    },
+    -----------------------------------------------------------------------------------------------
+    -----------------------------------------------------------------------------------------------
+    -----------------------------------------------------------------------------------------------
+
+    {
+        chapter = "Breadth search",
+        step = {0,26},
+        draw = drawGrid(0,0,24,13)
+    },
+    
+    {
+        step = {0, 26},
+        activate = moveGuyTo(512, 298)
+    },
+    {
+        step = {0,26},
+        draw = drawAnimatedSprite(0, 432, 16, 16, 
+            192, bounceTween(300,280,.25), 1, easeOutElasticTween(0, 1, 1.5), 8, 16, 4, 10)
+    },
+    {
+        step = 0,
+        draw = detachedBubble([[
+                Chapter 3:
+                Breadth First Search]], nil, nil, nil, nil, 30)
+    },
+    {
+        step = 1,
+        draw = detachedBubble[[
+            Breadth First Search works differently than 
+            Depth First Search. It maintains a queue of
+            cells to visit and processes them in order
+            of encountering them.
+        ]]
+    },
+    {
+        step = {2,26},
+        draw = codeExecutor([[
+            local visited = {}
+            local queue = {}
+            local startX, startY = 16, 9
+            local endX, endY = 5, 9
+            table.insert(queue, {startX, startY})
+            visited[startX + startY * width] = true
+            while #queue > 0 do
+              local current = table.remove(queue, 1)
+              local x, y = current[1], current[2]
+              if x == endX and y == endY then
+                break
+              end
+              for _, dir in ipairs({{1,0},{-1,0},{0,1},{0,-1}}) do
+                local nextX, nextY = x + dir[1], y + dir[2]
+                if nextX >= 0 and nextX < width and nextY >= 0 and nextY < height then
+                  local index = nextX + nextY * width
+                  if not visited[index] and not blocked[index] then
+                    table.insert(queue, {nextX, nextY})
+                    -- store the source we came from in the visited table
+                    visited[index] = current
+                  end
+                end
+              end
+            end
+            ]], 0, 0, GetScreenSize(), nil, -20,
+            {
+                blocked = GetBlockedMap(map),
+                width = mapWidth,
+                height = mapHeight
+            },
+            function(step, stackinfo)
+            end)
+    },
 }
 
 -- the steps are relative to each chapter. Let's calculate the absolute
@@ -790,11 +1277,19 @@ local steps = {
 local chapterOffset = 0
 local maxStepInChaper = 0
 local chapters = {}
+local prevChapter
 for i, step in ipairs(steps) do
     if step.chapter then
+        if prevChapter then
+            prevChapter.stepsInChapter = maxStepInChaper - prevChapter.chapterOffset
+        end
+        print("Chapter", step.chapter, chapterOffset, maxStepInChaper)
         chapterOffset = maxStepInChaper
         chapters[#chapters+1] = step
+        step.chapterOffset = chapterOffset
         step.chapterIndex = #chapters
+        prevChapter = step
+        maxStepInChaper = 0
     end
     if type(step.step) == "table" then
         step.step = {step.step[1] + chapterOffset, step.step[2] + chapterOffset}
@@ -804,6 +1299,9 @@ for i, step in ipairs(steps) do
         maxStepInChaper = math.max(maxStepInChaper, step.step + 1)
     end
     step.currentChapter = chapters[#chapters]
+end
+if prevChapter then
+    prevChapter.stepsInChapter = maxStepInChaper - prevChapter.chapterOffset
 end
 
 local frame = 0
@@ -815,7 +1313,7 @@ function draw(dt)
     map:draw(0,0)
     overlay:draw(0,0)
     guyDraw()
-    local currentStep = GetCurrentStepIndex()
+    local currentStep = math.max(0,GetCurrentStepIndex())
     local currentChapter = chapters[1]
     for i, step in ipairs(steps) do
         local index = step.step
@@ -858,7 +1356,9 @@ function draw(dt)
     SetColor(250,200,100,255)
     DrawBubble((w-info_w) / 2, info_y, info_w, info_h, -1, 0,0)
     SetColor(0,0,0,255)
-    local currentChapterText = ("Chapter %d: %s"):format(currentChapter.chapterIndex, currentChapter.chapter)
+    local currentChapterText = ("Chapter %d: %s (%d / %d)"):
+        format(currentChapter.chapterIndex, currentChapter.chapter, 
+        currentStep - currentChapter.chapterOffset + 1, currentChapter.stepsInChapter or 0)
     DrawTextBoxAligned(currentChapterText, 20, (w-info_w) / 2 + 10, info_y + 2, info_w, 30, 0, 0.5)
 
     if showMenu then

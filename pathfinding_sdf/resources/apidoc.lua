@@ -70,6 +70,7 @@ function Sprite(srcX,
     dstHeight) end
 
 function GetTime() return 0.0 end
+function GetFrameTime() return 0.0 end
 function GetScreenSize() return 0,0 end
 
 function IsMenuKeyPressed() return false end

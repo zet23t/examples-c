@@ -18,6 +18,8 @@ typedef struct StyledTextBox
 } StyledTextBox;
 
 void SetDefaultFonts(Font *fonts);
+void SetDefaultMonoFonts(Font *fonts);
+void SetTextLineSpacingEx(int spacing);
 Rectangle DrawTextBoxAligned(const char *text, int fontSize, int x, int y, int w, int h, float alignX, float alignY, Color color);
 Rectangle DrawStyledTextBox(StyledTextBox styledTextBox);
 

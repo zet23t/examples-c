@@ -678,12 +678,36 @@ int lua_Tilemap_parse(lua_State *L)
     return 1;
 }
 
+int lua_Tilemap_getValue(lua_State *L)
+{
+    Tilemap *tilemap = luaL_checkudata(L, 1, "Tilemap");
+    int x = luaL_checkinteger(L, 2);
+    int y = luaL_checkinteger(L, 3);
+    if (x < 0 || y < 0 || x >= tilemap->width || y >= tilemap->height)
+    {
+        lua_pushinteger(L, 0);
+        return 1;
+    }
+    lua_pushinteger(L, tilemap->tiles[y * tilemap->width + x]);
+    return 1;
+}
+
+int lua_Tilemap_getSize(lua_State *L)
+{
+    Tilemap *tilemap = luaL_checkudata(L, 1, "Tilemap");
+    lua_pushinteger(L, tilemap->width);
+    lua_pushinteger(L, tilemap->height);
+    return 2;
+}
+
 int luaopen_Tilemap(lua_State *L)
 {
     luaL_Reg functions[] = {
         {"new", lua_Tilemap_new},
         {"draw", lua_Tilemap_draw},
         {"parse", lua_Tilemap_parse},
+        {"getValue", lua_Tilemap_getValue},
+        {"getSize", lua_Tilemap_getSize},
         {NULL, NULL}
     };
 
@@ -697,8 +721,15 @@ int luaopen_Tilemap(lua_State *L)
 }
 
 static Color luaDrawColor = {255, 255, 255, 255};
+static int luaDrawColorAlpha = 255;
 static Color luaClearColor = {0, 0, 0, 0};
 static int luaCurrentStepIndex = 0;
+
+static Color getCurrentColor()
+{
+    int a = luaDrawColorAlpha * luaDrawColor.a / 255;
+    return (Color){luaDrawColor.r, luaDrawColor.g, luaDrawColor.b, a};
+}
 
 int lua_GetCurrentStepIndex(lua_State *L)
 {
@@ -726,14 +757,47 @@ int lua_SetColor(lua_State *L)
     return 0;
 }
 
+int lua_SetColorAlpha(lua_State *L)
+{
+    int a = luaL_checkinteger(L, 1);
+    luaDrawColorAlpha = a;
+    return 0;
+}
+
+int lua_SetLineSpacing(lua_State *L)
+{
+    SetTextLineSpacingEx(luaL_checkinteger(L, 1));
+    return 0;
+}
+
+int lua_BeginScissorMode(lua_State *L)
+{
+    BeginScissorMode(luaL_checkinteger(L, 1), luaL_checkinteger(L, 2),
+        luaL_checkinteger(L,3), luaL_checkinteger(L, 4));
+    return 0;
+}
+
+int lua_EndScissorMode(lua_State *L)
+{
+    EndScissorMode();
+    return 0;
+}
+
 int lua_DrawRectangle(lua_State *L)
 {
-    int x = luaL_checkinteger(L, 1);
-    int y = luaL_checkinteger(L, 2);
-    int w = luaL_checkinteger(L, 3);
-    int h = luaL_checkinteger(L, 4);
-    DrawRectangle(x, y, w, h, luaDrawColor);
+    int x = (int)luaL_checknumber(L, 1);
+    int y = (int)luaL_checknumber(L, 2);
+    int w = (int)luaL_checknumber(L, 3);
+    int h = (int)luaL_checknumber(L, 4);
+    DrawRectangle(x, y, w, h, getCurrentColor(luaDrawColor));
     return 0;
+}
+
+int lua_GetScreenSize(lua_State *L)
+{
+    lua_pushinteger(L, GetScreenWidth());
+    lua_pushinteger(L, GetScreenHeight());
+    return 2;
 }
 
 int lua_DrawBubble(lua_State *L)
@@ -745,7 +809,7 @@ int lua_DrawBubble(lua_State *L)
     float angle = luaL_checknumber(L, 5);
     int arrowX = luaL_checkinteger(L, 6);
     int arrowY = luaL_checkinteger(L, 7);
-    DrawBubble(x, y, w, h, angle, arrowX, arrowY, luaDrawColor);
+    DrawBubble(x, y, w, h, angle, arrowX, arrowY, getCurrentColor(luaDrawColor));
     return 0;
 }
 
@@ -759,7 +823,7 @@ int lua_DrawTextBoxAligned(lua_State *L)
     int h = luaL_checkinteger(L, 6);
     float alignX = luaL_checknumber(L, 7);
     float alignY = luaL_checknumber(L, 8);
-    Rectangle rect = DrawTextBoxAligned(text, fontSize, x, y, w, h, alignX, alignY, luaDrawColor);
+    Rectangle rect = DrawTextBoxAligned(text, fontSize, x, y, w, h, alignX, alignY, getCurrentColor(luaDrawColor));
     lua_pushnumber(L, rect.x);
     lua_pushnumber(L, rect.y);
     lua_pushnumber(L, rect.width);
@@ -775,7 +839,7 @@ int lua_DrawTriangle(lua_State *L)
     float y2 = (float)luaL_checknumber(L, 4);
     float x3 = (float)luaL_checknumber(L, 5);
     float y3 = (float)luaL_checknumber(L, 6);
-    DrawTriangle((Vector2){x1, y1}, (Vector2){x2, y2}, (Vector2){x3, y3}, luaDrawColor);
+    DrawTriangle((Vector2){x1, y1}, (Vector2){x2, y2}, (Vector2){x3, y3}, getCurrentColor(luaDrawColor));
     return 0;
 }
 
@@ -787,7 +851,7 @@ int lua_DrawLine(lua_State *L)
     float y2 = (float)luaL_checknumber(L, 4);
     float thickness = (float)luaL_optnumber(L, 5, 1.0f);
 
-    DrawLineEx((Vector2){x1, y1}, (Vector2){x2, y2}, thickness, luaDrawColor);
+    DrawLineEx((Vector2){x1, y1}, (Vector2){x2, y2}, thickness, getCurrentColor(luaDrawColor));
     return 0;
 }
 
@@ -804,7 +868,7 @@ int lua_Sprite(lua_State *L)
     Texture2D texture = resources.tileset;
     Rectangle srcRec = (Rectangle){ srcX, srcY, srcWidth, srcHeight };
     Rectangle dstRec = (Rectangle){ dstX, dstY, dstWidth, dstHeight };
-    DrawTexturePro(texture, srcRec, dstRec, (Vector2){0, 0}, 0.0f, luaDrawColor);
+    DrawTexturePro(texture, srcRec, dstRec, (Vector2){0, 0}, 0.0f, getCurrentColor(luaDrawColor));
     return 0;
 }
 
@@ -826,6 +890,12 @@ int lua_IsPreviousPagePressed(lua_State *L)
     return 1;
 }
 
+int lua_IsMenuKeyPressed(lua_State*L)
+{
+    lua_pushboolean(L, IsKeyPressed(KEY_SPACE));
+    return 1;
+}
+
 void init_lua(lua_State *L)
 {
     luaL_openlibs(L);
@@ -835,9 +905,14 @@ void init_lua(lua_State *L)
     luaL_Reg functions[] = {
         {"SetClearColor", lua_SetClearColor},
         {"SetColor", lua_SetColor},
+        {"SetColorAlpha", lua_SetColorAlpha},
+        {"SetLineSpacing", lua_SetLineSpacing},
         {"GetCurrentStepIndex", lua_GetCurrentStepIndex},
         {"DrawTextBoxAligned", lua_DrawTextBoxAligned},
+        {"BeginScissorMode", lua_BeginScissorMode},
+        {"EndScissorMode", lua_EndScissorMode},
         {"DrawRectangle", lua_DrawRectangle},
+        {"GetScreenSize", lua_GetScreenSize},
         {"DrawBubble", lua_DrawBubble},
         {"DrawTriangle", lua_DrawTriangle},
         {"DrawLine", lua_DrawLine},
@@ -845,6 +920,7 @@ void init_lua(lua_State *L)
         {"GetTime", lua_GetTime},
         {"IsNextPagePressed", lua_IsNextPagePressed},
         {"IsPreviousPagePressed", lua_IsPreviousPagePressed},
+        {"IsMenuKeyPressed", lua_IsMenuKeyPressed},
         {NULL, NULL}
     };
     lua_pushglobaltable(L);
@@ -930,6 +1006,13 @@ int main(void)
         LoadFontEx("resources/Roboto-Bold.ttf", 40, codePoints, 256),
         {0}
     });
+    SetDefaultMonoFonts((Font[]){
+        LoadFontEx("resources/RobotoMono-Medium.ttf", 15, codePoints, 256),
+        LoadFontEx("resources/RobotoMono-Medium.ttf", 20, codePoints, 256),
+        LoadFontEx("resources/RobotoMono-Medium.ttf", 30, codePoints, 256),
+        LoadFontEx("resources/RobotoMono-Medium.ttf", 40, codePoints, 256),
+        {0}
+    });
 
     // Tutorial_init();
     init_lua(L);
@@ -954,7 +1037,7 @@ int main(void)
         {
             reloadTimeOut = 0.0f;
             TraceLog(LOG_INFO, "closing old lua state\n");
-            lua_close(L);
+            // lua_close(L);
             TraceLog(LOG_INFO, "reloading script\n");
             L = luaL_newstate();
             init_lua(L);

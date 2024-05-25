@@ -12,6 +12,10 @@ function SetClearColor(r,g,b,a) end
 ---@param a integer 0-255
 function SetColor(r,g,b,a) end
 
+---Sets a blend that modifies the final alpha value for every draw, regardless of the color set
+---@param a integer 0-255
+function SetColorAlpha(a) end
+
 ---Draws a rectangle using the current color
 ---@param x integer
 ---@param y integer
@@ -24,10 +28,10 @@ function DrawRectangle(x,y,w,h) end
 ---@param y integer
 ---@param w integer
 ---@param h integer
----@param arrow_type 0|1|2|3|4 
----@param arrow_x integer relative to x
----@param arrow_y integer relative to y
-function DrawBubble(x,y,w,h, arrow_type, arrow_x, arrow_y) end
+---@param arrow_angle number in degrees
+---@param arrow_x integer arrow tip relative to x
+---@param arrow_y integer arrow tip relative to y
+function DrawBubble(x,y,w,h, arrow_angle, arrow_x, arrow_y) end
 
 ---Draws a text within the specified rectangle
 ---@param text string
@@ -64,3 +68,11 @@ function Sprite(srcX,
     dstY,
     dstWidth,
     dstHeight) end
+
+function GetTime() return 0.0 end
+function GetScreenSize() return 0,0 end
+
+function IsMenuKeyPressed() return false end
+
+function BeginScissorMode(x, y, w, h) end
+function EndScissorMode() end

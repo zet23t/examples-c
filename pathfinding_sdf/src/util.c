@@ -212,7 +212,7 @@ static void DrawTextRich(Font font, const char *text, Vector2 position, float fo
     float textOffsetX = 0.0f;       // Offset X to next character to draw
 
     float scaleFactor = fontSize/font.baseSize;         // Character quad scaling factor
-
+    int alpha = tint.a;
     Color colorStack[16];
     int colorStackIndex = 0;
 
@@ -235,7 +235,8 @@ static void DrawTextRich(Font font, const char *text, Vector2 position, float fo
                 if (r >= 0 && g >= 0 && b >= 0 && a >= 0)
                 {
                     // valid color tag
-                    Color rgba = {r | r << 4, g | g << 4, b | b << 4, a | a << 4};
+                    Color rgba = {r | r << 4, g | g << 4, b | b << 4, 
+                        (a | a << 4) * alpha / 255 };
                     i+= 12;
                     if (colorStackIndex < 16)
                         colorStack[colorStackIndex++] = tint;

@@ -731,6 +731,12 @@ static Color getCurrentColor()
     return (Color){luaDrawColor.r, luaDrawColor.g, luaDrawColor.b, a};
 }
 
+int lua_SetCurrentStepIndex(lua_State *L)
+{
+    luaCurrentStepIndex = luaL_checkinteger(L, 1);
+    return 0;
+}
+
 int lua_GetCurrentStepIndex(lua_State *L)
 {
     lua_pushinteger(L, luaCurrentStepIndex);
@@ -884,6 +890,13 @@ int lua_GetTime(lua_State *L)
     return 1;
 }
 
+int lua_IsNumberKeyPressed(lua_State *L)
+{
+    int key = luaL_checkinteger(L, 1);
+    lua_pushboolean(L, IsKeyPressed(key + KEY_ZERO));
+    return 1;
+}
+
 int lua_IsNextPagePressed(lua_State *L)
 {
     lua_pushboolean(L, IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_RIGHT));
@@ -913,6 +926,7 @@ void init_lua(lua_State *L)
         {"SetColor", lua_SetColor},
         {"SetColorAlpha", lua_SetColorAlpha},
         {"SetLineSpacing", lua_SetLineSpacing},
+        {"SetCurrentStepIndex", lua_SetCurrentStepIndex},
         {"GetCurrentStepIndex", lua_GetCurrentStepIndex},
         {"DrawTextBoxAligned", lua_DrawTextBoxAligned},
         {"BeginScissorMode", lua_BeginScissorMode},
@@ -925,6 +939,7 @@ void init_lua(lua_State *L)
         {"Sprite", lua_Sprite},
         {"GetTime", lua_GetTime},
         {"GetFrameTime", lua_GetFrameTime},
+        {"IsNumberKeyPressed", lua_IsNumberKeyPressed},
         {"IsNextPagePressed", lua_IsNextPagePressed},
         {"IsPreviousPagePressed", lua_IsPreviousPagePressed},
         {"IsMenuKeyPressed", lua_IsMenuKeyPressed},
@@ -1014,6 +1029,7 @@ int main(void)
         {0}
     });
     SetDefaultMonoFonts((Font[]){
+        LoadFontEx("resources/RobotoMono-Medium.ttf", 10, codePoints, 256),
         LoadFontEx("resources/RobotoMono-Medium.ttf", 15, codePoints, 256),
         LoadFontEx("resources/RobotoMono-Medium.ttf", 20, codePoints, 256),
         LoadFontEx("resources/RobotoMono-Medium.ttf", 30, codePoints, 256),

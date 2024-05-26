@@ -48,6 +48,7 @@ function DrawTextBoxAligned(text, fontsize, x, y, w, h, align_x, align_y) return
 function IsNextPagePressed() return false end
 function IsPreviousPagePressed() return false end
 function GetCurrentStepIndex() return 0 end
+function SetCurrentStepIndex(i) return 0 end
 
 function DrawLine(x1, y1, x2, y2, thickness) end
 function DrawTriangle(x1, y1, x2, y2, x3, y3) end
@@ -74,6 +75,7 @@ function GetFrameTime() return 0.0 end
 function GetScreenSize() return 0,0 end
 
 function IsMenuKeyPressed() return false end
+function IsNumberKeyPressed(number) return false end
 
 function BeginScissorMode(x, y, w, h) end
 function EndScissorMode() end

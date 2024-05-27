@@ -162,6 +162,7 @@ local function codeExecutor(code, x, y, w, h, fontsize, contextEnv, stackInfoHan
         print(err)
         return
     end
+    local maxStepCount = 30000
 
     local highlightedText,lineCount = trim(err or syntaxHighlightLua(code))
     local codeHeight = math.abs(fontsize) * lineCount
@@ -194,7 +195,6 @@ local function codeExecutor(code, x, y, w, h, fontsize, contextEnv, stackInfoHan
             end
             return result
         end
-        local maxStepCount = 30000
         debug.sethook(coro, function(event, line)
             stepCount = stepCount + 1
             if stepCount > maxStepCount then
@@ -234,6 +234,9 @@ local function codeExecutor(code, x, y, w, h, fontsize, contextEnv, stackInfoHan
     coro = coroutine.create(func)
     debug.sethook(coro, function(event, line)
         totalLineExec = totalLineExec + 1
+        if totalLineExec > maxStepCount then
+            error("Code execution limit reached")
+        end
     end, "l")
     local suc, err = coroutine.resume(coro)
     if not suc then
@@ -2259,6 +2262,153 @@ local steps = {
                 A*]], nil, nil, nil, nil, 30)
     },
     {
+        step = {2,16},
+        draw = codeExecutor([[
+            local queue = {}
+            local visited = {}
+            local adjacents = {{1,0},{-1,0},{0,1},{0,-1}}
+            local startX, startY = 16, 9
+            local endX, endY = 6, 9
+            local function estimate(x, y)
+                return math.abs(x - endX) + math.abs(y - endY)
+            end
+            
+            -- the 4th value is the estimated cost plus 
+            -- the cost to get here
+            queue[#queue + 1] = {startX, startY, 0, 
+                estimate(startX, startY)}
+            visited[startX + startY * width] = {startX, startY, 0,
+                estimate(startX, startY)}
+            while #queue > 0 do
+              local lowestCostIndex = #queue
+              local lowestCost = queue[lowestCostIndex][4]
+              for i=#queue,2,-1 do
+                if queue[i][4] < lowestCost then
+                  lowestCost = queue[i][4]
+                  lowestCostIndex = i
+                end
+              end
+              local current = table.remove(queue, lowestCostIndex)
+              local x, y, cost = current[1], current[2], current[3]
+              if x == endX and y == endY then
+                break
+              end
+              for _, dir in ipairs(adjacents) do
+                local nextX, nextY = x + dir[1], y + dir[2]
+                if nextX >= 0 and nextX < width and 
+                  nextY >= 0 and nextY < height 
+                then
+                  local index = nextX + nextY * width
+                  local newCost = cost + costMap[index]
+                  local estimatedCost = newCost + estimate(nextX, nextY)
+                  
+                  if (not visited[index] or visited[index][4] > estimatedCost)
+                    and costMap[index] > 0 
+                  then
+                    queue[#queue + 1] = {nextX, nextY, newCost, estimatedCost}
+                    visited[index] = {x, y, newCost, estimatedCost}
+                  end
+                end
+              end
+            end
+            local path
+            if visited[endX + endY * width] then
+              path = {}
+              local current = endX + endY * width
+              while current do
+                path[#path + 1] = current
+                if current == startX + width * startY then
+                  break
+                end
+                local from = visited[current]
+                current = from[1] + from[2] * width
+              end
+            end
+            ]], 0, 0, GetScreenSize(), nil, -20,
+            {
+                costMap = getBlockedMap(map, true),
+                width = mapWidth,
+                height = mapHeight,
+                table = table,
+                ipairs = ipairs,
+                math = math,
+                print=print
+            },
+            function(step, stackinfo)
+                local stackScope = {}
+                for i=#stackinfo,1,-1 do
+                    local info = stackinfo[i]
+                    for j=1,#info.locals do
+                        local localInfo = info.locals[j]
+                        stackScope[localInfo.name] = localInfo.value
+                    end
+                end
+                local visited = stackScope.visited or {}
+                local queue = stackScope.queue or {}
+                local x,y = stackScope.x, stackScope.y
+                local nextX, nextY = stackScope.nextX, stackScope.nextY
+                local endX, endY = stackScope.endX, stackScope.endY
+                -- if endX and endY then
+                --     local cx, cy = endX * 32, endY * 32
+                --     SetColor(255,0,0,255)
+                --     DrawRectangle(cx - 10, cy - 10, 20, 20)
+                -- end
+                SetColor(255,255,255,255)
+                local path = stackScope.path or {}
+                local pathmap = {}
+                for i=1,#path do
+                    pathmap[path[i]] = true
+                end
+                for i,v in pairs(visited) do
+                    local from = visited[i]
+                    local fromX, fromY, cost = from[1], from[2], from[4]
+                    local cellX = i % mapWidth
+                    local cellY = math.floor(i / mapWidth)
+                    if fromX ~= cellX or fromY ~= cellY then
+                        local cx, cy = (cellX + fromX) * 16, (cellY + fromY) * 16
+                        local dx, dy = cellX - fromX, cellY - fromY
+                        local spriteId = 2
+                        if dx == 1 then
+                            spriteId = 1
+                        elseif dy == -1 then
+                            spriteId = 0
+                        elseif dx == -1 then
+                            spriteId = 3
+                        end
+                        if pathmap[i] then
+                            SetColor(255,100,0,255)
+                        else
+                            SetColor(255,255,255,255)
+                        end
+                        Sprite(spriteId * 16, 400, 16, 16, cx-8, cy-8, 16, 16)
+                        DrawTextBoxAligned(tostring(cost), 15, cellX * 32 - 16, cellY * 32 - 16, 32, 32, 0.5, 0.5)
+                    end
+                end
+                for i=1,#queue do
+                    local current = queue[i]
+                    local cx, cy = current[1] * 32, current[2] * 32
+                    SetColor(255,255,255,140)
+                    DrawRectangle(cx - 10, cy - 10, 20, 20)
+                    SetColor(128,0,255,140)
+                    DrawRectangle(cx - 8, cy - 8, 16, 16)
+                    SetColor(255,255,255,180)
+                    DrawTextBoxAligned(tostring(current[4]),15, cx - 16, cy - 14, 32, 32, 0.5, 0.5)
+                end
+                if x and y then
+                    local cx, cy = x * 32, y * 32
+                    SetColor(255,0,0,255)
+                    DrawRectangle(cx - 4, cy - 4, 8, 8)
+                end
+                if nextX and nextY then
+                    local cx, cy = nextX * 32, nextY * 32
+                    SetColor(0,0,0,255)
+                    DrawLine(cx, cy, x * 32, y * 32, 5)
+                    SetColor(255,128,0,255)
+                    DrawRectangle(cx - 4, cy - 4, 8, 8)
+                end
+            end)
+    },
+    {
         step = {0, 20},
         activate = moveGuyTo(512, 298)
     },
@@ -2267,6 +2417,132 @@ local steps = {
         draw = drawAnimatedSprite(0, 432, 16, 16, 
             192, bounceTween(300,280,.25), 1, easeOutElasticTween(0, 1, 1.5), 8, 16, 4, 10)
     },
+    
+    {
+        step = 1,
+        draw = detachedBubble[[
+            A* can be seen as an extension of Dijkstra's 
+            algorithm: Additionally to the cost of traveling 
+            to a cell, it also estimates the cost of traveling 
+            from that cell to the goal. The rest works the 
+            same. We will see now how this changes the
+            undirected search to a directed one.
+            
+            We will ignore the diagonal movements for now
+            as we will later look at a better solution.]]
+    },
+    {
+        step = 2,
+        activate = function() 
+            codeExecutorShowLine = 6
+            codeExecutorSetStep = 6
+        end,
+        draw = speechBubblePointAt([[
+            We have now an [color=f00f]estimate[/color] function that returns the estimated 
+            travel costs to the target. We use the manhatten distance here.]], 50, 00, 500,nil,270,320,100)
+    },
+    {
+        step = 3,
+        activate = function() 
+            codeExecutorShowLine = 11
+            codeExecutorSetStep = 8
+        end,
+        draw = speechBubblePointAt([[
+            The [color=f00f]queue[/color] and [color=f00f]visited[/color] table has now a 4th value that is the sum 
+            of the estimate and the costs of this cell.]], 50, 00, 500,nil,270,320,100)
+    },
+    {
+        step = {4,5},
+        activate = function() 
+            codeExecutorShowLine = 20
+            codeExecutorSetStep = 16
+        end,
+        draw = speechBubblePointAt([[
+            When looking for the next element to dequeue,
+            we pick the one with that has the best prospect
+            to reach the target soon.]], 400, 70, 400,nil,0,-20,40)
+    },
+    {
+        step = 5,
+        draw = speechBubblePointAt([[
+            The number here represents the sum of the estimate
+            and the costs so far - the distance to the flag is 10.
+            Thus, the first entry has total value of 10.]], 390, 320, 410,nil,90,120,-20)
+    },
+    {
+        step = 6,
+        activate = function() 
+            codeExecutorShowLine = nil
+            codeExecutorSetStep = 70
+        end,
+        draw = speechBubblePointAt([[
+            After the first iteration, the value to the left has the
+            best score: 10. If our estimation function does not 
+            underestimate the distance, we will never be lower 
+            than 10.]], 50, 250, 400,nil,180,420,40)
+    },
+    {
+        step = {7,8},
+        activate = function() 
+            codeExecutorShowLine = nil
+            codeExecutorSetStep = 133
+        end,
+        draw = speechBubblePointAt([[
+            We now have 5 entries with the same score.]], 50, 250, 400,nil,180,420,40)
+    },
+    {
+        step = 8,
+        activate = function() 
+            codeExecutorShowLine = nil
+            codeExecutorSetStep = 133
+        end,
+        draw = speechBubblePointAt([[
+            But I changed the iteration over the queue:
+            Searching from end to start for the best 
+            candidate to continue gives entries that
+            were added last a bonus.
+            This makes sense: If we are on a good route,
+            why should we continue with entries that are
+            rather old?]], 350, 50, 400,nil,0,-20,40)
+    },
+    {
+        step = 9,
+        activate = function() 
+            codeExecutorShowLine = nil
+            codeExecutorRunToStepWarpRange = 500
+            codeExecutorSetStep = 133
+            codeExecutorRunToStep = 450
+            codeExecutorStepsPerSecond = 20
+        end,
+        draw = speechBubblePointAt([[
+            We can see now that our search continues
+            at those points that are closest to the target]], 10, 250, 350,nil,180,370,40)
+    },
+    {
+        step = 10,
+        activate = function() 
+            codeExecutorShowLine = nil
+            codeExecutorRunToStepWarpRange = 2500
+            codeExecutorSetStep = 450
+            codeExecutorRunToStep = 2164
+            codeExecutorStepsPerSecond = 200
+        end,
+        draw = speechBubblePointAt([[
+            It is quite clear, 
+            that the search is 
+            converging very 
+            fast towards the 
+            target.]], 10, 250, 150,nil,-1,370,40)
+    },
+    {
+        step = 17,
+        activate = function()
+            codeExecutorSetStep = 120
+            codeExecutorRunToStepWarpRange = 1000
+            codeExecutorRunToStep = 1000
+            codeExecutorStepsPerSecond = 10
+        end
+    }
 }
 
 -- the steps are relative to each chapter. Let's calculate the absolute
